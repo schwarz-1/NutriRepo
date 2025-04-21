@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,7 +20,7 @@ app.get('/', (req, res) => {
 app.post('/api/chat', async (req, res) => {
   try {
     const { message } = req.body;
-    
+
     // Validate input
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -58,6 +59,66 @@ app.post('/api/chat', async (req, res) => {
   } catch (error) {
     console.error('Error:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to get AI response' });
+  }
+});
+
+// Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
+
+// Signup endpoint
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name
+        }
+      }
+    });
+
+    if (error) throw error;
+    res.status(201).json({ user: data.user });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) throw error;
+    res.json({ user: data.user });
+  } catch (error) {
+    res.status(401).json({ error: error.message });
+  }
+});
+
+// Protected profile endpoint
+app.get('/api/profile', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) throw new Error('No token provided');
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error) throw error;
+
+    res.json({ user });
+  } catch (error) {
+    res.status(401).json({ error: error.message });
   }
 });
 
